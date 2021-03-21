@@ -1,0 +1,73 @@
+*   Si sviluppi un sottoprogramma, chiamato SUMSELECTIVE, che opera su un vettore VET di 10 word.
+*   Il sottoprogramma restituisce la somma degli elementi positivi del vettore. Il sottoprogramma deve
+*   ricevere come parametri, attraverso lo Stack, l'indirizzo di partenza e la dimensione del vettore
+*   e l'indirizzo di una locazione RIS nella quale il sottoprogramma stesso scriverà il risultato della somma.
+*   Il sottoprogramma deve inoltre utilizzare il meccanismo dello Stack Frame
+*   tramite istruzioni LINK/UNLK e deve prevedere l'uso di una variabile locale
+*   usata per memorizzare la somma parziale durante lo scorrimento del vettore.
+*   Si scriva infine un programma MAIN che alloca il vettore nella sua area dati e chiama il sottoprogramma
+*   SUMSELECTIVE, passando opportunamente i parametri al sottoprogramma attraverso lo Stack.
+*   Esempio di esecuzione:
+*   Se il vettore VET è:  5 -3 -2 5 3 -7 9 3 -4 2
+*   SUMSELECTIVE restituirà: 5 + 5 + 3 + 9 + 3 + 2 = 27  (la somma dei soli elementi positivi)
+
+
+*   Situazione dello stack dopo la chiamata LINK A6,#-2 del sottoprogramma:
+*
+*   |_______________|
+*   |   Variabile Locale 	| 2 bytes    <--- SP punta all'inizio di questi due bytes 
+*   |       Vecchio A6	| 4 bytes    <--- A6 (ovvero il FP) é situato alla fine di questi 4 bytes
+*   | Indirizzo di ritorno| 4 bytes
+*   |    Indirizzo VET	| 4 bytes
+*   |   Dimensione N	| 2 bytes
+*   |___Indirizzo RIS__| 4 bytes
+
+
+	ORG $8000					*programma MAIN, il suo unico scopo é quello di passare i parametri alla subroutine e invocarla.
+MAIN	MOVE.L	#RIS,-(SP)			*sposto direttamente l'indirizzo dell'area di memoria RIS all'interno dello Stack, occupando 4 bytes
+	MOVE	N,-(SP)				*sposto la dimensione del vettore N nello stack, occupando 2 bytes (N é una DC, quindi posso usare il modo di indirizzamentro diretto)
+	MOVE.L	#VET,-(SP)			*sposto l'indirizzo del vettore VET all'interno dello stack, occupando 4 bytes
+	JSR	SUMSELECTIVE		* JSR alla subroutine. ATTENZIONE: l'invocazione di JSR salva automaticamente l'indirizzo di ritorno, occupando altri 4 bytes nello stack.
+	ADDA.L	#10,SP				*quando si ritorna dalla subroutine lo SP sta puntando alla fine dei 4 bytes di "Indirizzo di ritorno", 
+DONE	JMP	DONE				*quindi per pulire lo stack e portarlo di nuovo a 9200, bisogna aggiungere 10 bytes
+
+
+	ORG $8100					*AREA DATI
+N	DC.W	10					*N é la dimensione del vettore. ATTENZIONE: E'definito come DC e non come EQU, quindi prestare attenzione al modo di indirizzamento
+VET	DC.W 	5,-3,-2,5,3,-7,9,3,-4,2			*VET é il vettore vero e proprio	
+RIS	DS.W	1					*RIS é lárea di memoria dove verrá salvato il risultato finale
+
+	ORG $8200
+*SPIAZZAMENTI*					*Gli spiazzamenti vanno calcolati prendendo come riferimento A6 dopo la chiamata di LINK
+PVET	EQU	8					*PVET punta all'indirizzo di VET. Osservando la figura in cima, A6 dista 8 bytes (Vacchio A6 + Indirizzo di ritorno) da "Indirizzo VET"
+PDIM	EQU	12					*PDIM punta alla dimensione del vettore, ovvero ad N. Osservando la figura in cima, A6 dista 12 bytes (Vacchio A6 + Indirizzo di ritorno + indirizzo VET) da "Dimensione N"
+PRIS	EQU	14					*PRIS punta all'indirizzo RIS. Osservando la figura in cima, A6 dista 14 bytes (Vacchio A6 + Indirizzo di ritorno + indirizzo VET + Dimensione N) da "Indirizzo RIS"
+VARLO	EQU	-2					*VARLO punta all'area riservata alla variabile locale alla subroutine. ATTENZIONE lo spiazzamento é negativo perché "Variabile Locale" si trova piú in alto rispetto ad A6
+
+*SOTTOPROGRAMMA*
+
+SUMSELECTIVE	LINK	A6,#-2			*Istruzione per creare il Frame Pointer.
+			MOVEM.L	D0-D3/A0-A2,-(SP)	*E' buona norma salvare il contenuto dei registri che si pensa di utilizzare nella subroutine nello stack. 
+			MOVE	PDIM(A6),D0		*Utilizzando gli SPIAZZAMENTI calcolati prima e il FP, accedo allo stack e prelevo la dimensione del vettore e la pongo in D0
+			MOVE.L	PVET(A6),A0		*Utilizzando gli SPIAZZAMENTI calcolati prima e il FP, accedo allo stack e prelevo l'indirizzo di VET e lo pongo in A0
+			MOVE	#0,VARLO(A6)		*Utilizzando gli SPIAZZAMENTI calcolati prima e il FP, accedo allo stack e pulisco lo spazio della variabile locale che verrá utilizzata come accumulatore
+LOOP			CMP	#0,D0			*Inizia un ciclo FOR. Confronto il valore attuale di conteggio (D0) con zero
+			BLE	RET			*Se il risultato precedente é <= 0,. allora ho terminato la subroutine ed esco dal ciclo saltando alla label RET
+			SUB	#1,D0			*Sottraggo 1 alla D0.....sto effettuando un ciclo a decrementare.
+			MOVE	(A0)+,D2		*Prelevo l'elemento corrente del vettore VET e lo pongo in D2
+			CMP	#0,D2			*Confronto D2 (l'elemento del vettore) con zero
+			BLE	LOOP			*Se l'elemento corrente del vettore é negativo, non devo sommarlo al risultato e quindi devo passare ad analizzare direttamente l'elemento successivo.
+			ADD	D2,VARLO(A6)		*Se invece l'elemento corrente del vettore risulta positivo, vado a sommarla nella variabile in memoria.
+			BRA 	LOOP			*Passo ad analizzare l'elemento successivo con un salto incondizionato
+RET			MOVE.L	PRIS(A6),A1		*Prelevo l'indirizzo di RIS dallo stack e lo pongo nel registro A1
+			MOVE		VARLO(A6),(A1)	*Con questa istruzione scrivo direttamente il risultato corretto in RIS utilizzando il based_addressing e l'indirizzamento indiretto
+			MOVEM.L 	(SP)+,D0-D3/A0-A2	*Ripristino il vecchio contenuto dei registri utilizzati nella subroutine
+			UNLK A6				*Ripristiono l'FP. ovvero ricopio il "Vecchio A6" in A6 e faccio puntare lo SP all'indirizzo di ritorno.
+			RTS					*SP punta correttamente ad "indirizzo di ritorno", quindi questa istruzione mi fa tornare correttamente al MAIN
+
+			END MAIN
+
+
+
+
+

@@ -1,0 +1,36 @@
+*Esempio 023 utilizzando tre variabili locali: contatore, accumulatore e spazio per ritorno.
+	ORG	$8100
+MAIN	MOVE.L	BASE,-(A7)
+	MOVE.W	ESP,-(A7)
+	SUB.L	#4,A7	lascio spazio come ds per stack
+	JSR	PWR
+	MOVE.L	(A7)+,RES
+	ADDQ.L	#6,A7
+FINE	BRA	FINE	utilizzo BRA che trova l'indirizzo per differenza e dato che l'etichetta a cui saltare è vicina conviene!
+	ORG	$8000
+BASE	DC.L	2
+ESP	DC.W	5	non è .L altrimenti troppo grande.
+RES	DS.L	1
+BASE_OFF	EQU	16
+ESP_OFF	EQU	12
+RES_OFF	EQU	8
+CONT_OFF	EQU	-6
+ACC_OFF	EQU	-4
+	ORG	$8200
+PWR	LINK	A6,#-6
+	MOVE.L	D0,-(A7)	Per poi ripurirlo salviamo il contenuto del registro che andremo a sporcare
+	MOVE.L	#1,ACC_OFF(A6)
+	MOVE.W	ESP_OFF(A6),CONT_OFF(A6)	
+LOOP	CMP.W	#0,CONT_OFF(A6)
+	BLE	ESCI
+	MOVE.L	ACC_OFF(A6),D0	utilizziamo un registro di appoggio per la destinazione della moltiplicazione
+	MULU	BASE_OFF(A6),D0	la moltiplicazione non accetta l'op. destinazione in memoria perchè è un'istruzione pesante
+	MOVE.L	D0,ACC_OFF(A6)
+	SUB.W	#1,CONT_OFF(A6)
+	BRA	LOOP
+ESCI	MOVE.L	ACC_OFF(A6),RES_OFF(A6)
+	MOVE.L	(A7)+,D0	restituiamo il valore precedente al registro sporcato
+	UNLK	A6
+	RTS
+	END	MAIN
+
